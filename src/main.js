@@ -1,5 +1,6 @@
 import van from "vanjs-core";
 import confetti from "canvas-confetti";
+import { Route, goto, nowHash } from "vanjs-router";
 
 import { head } from "./header.js";
 import { content } from "./content.js";
@@ -85,8 +86,21 @@ const render = () => {
 
   return [
     head(),
-    div({ id: "contrib" }, div(h2("耻辱墙()")), img({ src: "https://ghchart.rshah.org/EC473B/icewind233", loading: "lazy" })),
-    page()];
+    Route({
+      rule: "home",
+      Loader: () => {
+        return div(
+          div({ id: "contrib" }, div(h2("耻辱墙()")), img({ src: "https://ghchart.rshah.org/EC473B/icewind233", loading: "lazy" })),
+          page())
+      }
+    }),
+    Route({
+      rule: "content", onLoad() {},
+      Loader: () => {
+        return div()
+      }
+    })
+  ];
 }
 
 

@@ -117,3 +117,8 @@ main {
 #contrib img {
   width: 100%;
 }
+
+.router {
+  /* when hover change mouse style as finger */
+  cursor: pointer;
+}
