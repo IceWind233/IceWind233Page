@@ -74,6 +74,7 @@ a:visited {
 }
 
 main {
+  backdrop-filter: blur(4px);
   box-sizing: border-box;
   background-color: #F9EBD7CC;
   margin: 0 10vw 0 10vw;
