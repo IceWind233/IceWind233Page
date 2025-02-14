@@ -4,6 +4,7 @@ import { Route, goto, nowHash } from "vanjs-router";
 
 import { head } from "./header.js";
 import { content } from "./content.js";
+import * as blogs from "./post/modules.js";
 
 import './style.css'
 
@@ -25,7 +26,10 @@ const page = () => {
       h2("简介"),
       p(`${intro}`)
     ),
-    ...test.map(item => content(item.title, item.href, item.detail)),
+    h2("下面有点东西但不多"),
+    hr(),
+
+    blogs.AutoTriple.AutoTripleTitle(),
   );
 }
 
@@ -94,12 +98,7 @@ const render = () => {
           page())
       }
     }),
-    Route({
-      rule: "content", onLoad() {},
-      Loader: () => {
-        return div()
-      }
-    })
+    blogs.AutoTriple.AutoTripleRouter(),
   ];
 }
 
