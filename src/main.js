@@ -24,6 +24,7 @@ const page = () => {
     blogs.AutoTriple.AutoTripleTitle(),
     blogs.MusicGallery.MusicGalleryTitle(),
     blogs.MediaCollector.MediaCollectorTitle(),
+    blogs.SummaryOf25.SummaryOf25Title(),
   );
 }
 
@@ -95,6 +96,7 @@ const render = () => {
     blogs.AutoTriple.AutoTripleRouter(),
     blogs.MusicGallery.MusicGalleryRouter(),
     blogs.MediaCollector.MediaCollectorRouter(),
+    blogs.SummaryOf25.SummaryOf25Router(),
   ];
 }
 
