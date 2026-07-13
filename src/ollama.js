@@ -279,11 +279,11 @@ export const OllamaChat = () => {
                 () => selectedModel.val === "gemma4-12b-heretic"
                     ? van.tags.div(
                         van.tags.span({ class: "md-badge badge-speed" }, "⚡ 极速推理"),
-                        van.tags.p({ style: "margin: 8px 0 0 8px;" }, "特点：参数量较轻，响应延迟低。但复杂长文本的准确率上限相对稍低。")
+                        van.tags.p({ style: "margin: 8px 0 0 8px; font-size: 15px" }, "特点：参数量较轻，响应延迟低。但复杂长文本的准确率上限相对稍低。")
                     )
                     : van.tags.div(
                         van.tags.span({ class: "md-badge badge-accuracy" }, "🎯 高精准确"),
-                        van.tags.p({ style: "margin: 8px 0 0 8px;" }, "特点：参数量大，对复杂上下文的理解能力极强。输出速度会比 12b 慢。")
+                        van.tags.p({ style: "margin: 8px 0 0 8px; font-size: 15px" }, "特点：参数量大，对复杂上下文的理解能力极强。输出速度会比 12b 慢。")
                     )
             ),
 

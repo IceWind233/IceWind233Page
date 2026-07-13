@@ -50,7 +50,7 @@ body {
   transition-timing-function: ease-in-out;
 }
 
-.icon:hover{
+.icon:hover {
   transform: rotate(180deg);
 }
 
@@ -65,7 +65,7 @@ p {
 }
 
 a {
-  text-decoration: none; 
+  text-decoration: none;
   color: #333;
 }
 
@@ -80,7 +80,7 @@ main {
   margin: 0 10vw 0 10vw;
   padding: 15px;
   width: 80%;
-  color: #333333; 
+  color: #333333;
   border-radius: 10px;
 }
 
@@ -134,4 +134,76 @@ main hr {
 
 .blog a {
   text-decoration: underline;
+}
+
+/* =========================================
+   移动端适配 (屏幕宽度 <= 768px)
+========================================= */
+@media screen and (max-width: 768px) {
+
+  /* 1. 顶部 Header 调整：改为上下排列，或者让图标靠得更紧凑 */
+  header {
+    flex-direction: column;
+    align-items: center;
+    height: auto;
+    padding: 15px 10px;
+  }
+
+  header h1 {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+  }
+
+  .icons {
+    width: auto;
+    /* 取消 9% 的限制 */
+    gap: 20px;
+    /* 使用 gap 控制图标间距，更容易点击 */
+  }
+
+  /* 2. 主内容区拓宽：充分利用手机屏幕 */
+  main {
+    width: 95%;
+    margin: 15px auto;
+    /* 居中对齐，取消夸张的 vw 留白 */
+    padding: 10px;
+  }
+
+  /* 3. 耻辱墙区块拓宽 */
+  #contrib {
+    width: 95%;
+    margin: 15px auto;
+    height: auto;
+    /* 取消 30vh 的固定高度，让内容自然撑开 */
+  }
+
+  .intro {
+    font-size: 16px;
+    /* 稍微缩小一点字体，避免大段文字在手机上过于拥挤 */
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .md-card {
+    padding: 16px;
+    /* 减小卡片内边距 */
+  }
+
+  .md-btn {
+    padding: 10px 16px;
+    /* 稍微缩短按钮，给输入框留出更多空间 */
+    font-size: 14px;
+  }
+
+  .msg-user span,
+  .msg-assistant span {
+    max-width: 90%;
+    /* 手机端气泡可以稍微宽一点 */
+  }
+
+  /* 让输入框和按钮所在的 Flex 容器在极窄屏幕下也能保持同行，或者调整比例 */
+  .chat-box {
+    max-height: 50vh;
+    /* 手机端根据视口高度动态调整聊天区高度 */
+  }
 }
