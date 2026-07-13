@@ -5,6 +5,7 @@ import { Route, goto, nowHash } from "vanjs-router";
 import { head } from "./header.js";
 import { content } from "./content.js";
 import * as blogs from "./post/modules.js";
+import * as ollama from "./ollama.js";
 
 import './style.css'
 
@@ -18,6 +19,10 @@ const page = () => {
       h2("简介"),
       p(`${intro}`)
     ),
+    // add ollama entry title
+    h2("神秘应用"),
+    hr(),
+    ollama.OllamaChatTitle(),
     h2("下面有点东西但不多"),
     hr(),
 
@@ -93,6 +98,8 @@ const render = () => {
           page())
       }
     }),
+    // ollama router
+    ollama.OllamaChatRouter(),
     blogs.AutoTriple.AutoTripleRouter(),
     blogs.MusicGallery.MusicGalleryRouter(),
     blogs.MediaCollector.MediaCollectorRouter(),
