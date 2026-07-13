@@ -250,7 +250,7 @@ export const OllamaChat = () => {
 
             van.tags.div({ class: "md-field" },
                 van.tags.input({
-                    class: "md-input", type: "password", placeholder: "请输入管理员下发的通行密钥 (SHA-256)",
+                    class: "md-input", type: "password", placeholder: "请输入管理员下发的通行密钥",
                     value: accessKey, oninput: e => accessKey.val = e.target.value
                 })
             ),
