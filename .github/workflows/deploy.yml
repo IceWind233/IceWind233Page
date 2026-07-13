@@ -31,3 +31,4 @@ jobs:
             PUBLISH_BRANCH: main
             PUBLISH_DIR: ./dist
             commit_message: ${{ github.event.head_commit.message }}
+            cname: icewind.qzz.io
