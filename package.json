@@ -15,7 +15,7 @@
   "dependencies": {
     "canvas-confetti": "^1.9.3",
     "vanjs-converter": "^0.2.1",
-    "vanjs-core": "^1.5.3",
+    "vanjs-core": "^1.6.0",
     "vanjs-router": "^2.1.0"
   }
 }

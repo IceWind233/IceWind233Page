@@ -19,7 +19,22 @@ const getOrGenerateDeviceId = () => {
     return id;
 };
 
-// Ollama API 基础路径（根据实际部署调整，默认本地）
+// 辅助函数：检测 LocalStorage 剩余空间是否小于 10%
+const checkStorageCapacity = () => {
+    let totalBytes = 0;
+    for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+            // 字符串长度 * 2 (UTF-16 每个字符 2 字节)
+            totalBytes += (localStorage[key].length + key.length) * 2;
+        }
+    }
+    const maxBytes = 5 * 1024 * 1024; // 大多数浏览器限制为 5MB
+    if (totalBytes > maxBytes * 0.9) {
+        alert("⚠️ 本地存储空间剩余不足 10%，请及时清理废旧不用的 Session！");
+    }
+};
+
+// Ollama API 基础路径
 const OLLAMA_HOST = "https://ollama.icewind.qzz.io";
 
 export const OllamaChatTitle = () => {
@@ -36,24 +51,50 @@ export const OllamaChatTitle = () => {
 
 export const OllamaChat = () => {
     // --- 状态定义 ---
-    // 1. 认证相关状态
     const deviceName = van.state(getOrGenerateDeviceId());
     const accessKey = van.state("");
     const isAuthorized = van.state(localStorage.getItem("ollama_auth_passed") === "true");
     const authError = van.state("");
 
-    // 2. 模型对话相关状态
     const selectedModel = van.state("gemma4-12b-heretic");
     const previousModel = van.state("");
     const isModelLoading = van.state(false);
     const inputMessage = van.state("");
     const isResponding = van.state(false);
 
-    // 从 localStorage 初始化历史记录
-    const cachedHistory = localStorage.getItem("ollama_chat_history");
-    const chatHistory = van.state(cachedHistory ? JSON.parse(cachedHistory) : []);
+    // --- Session 管理初始化 ---
+    const initSessions = () => {
+        const storedSessions = localStorage.getItem("ollama_sessions");
+        if (storedSessions) {
+            return JSON.parse(storedSessions);
+        }
+        // 兼容旧版代码，将旧的 chatHistory 迁移到默认 Session 中
+        const legacyHistory = localStorage.getItem("ollama_chat_history");
+        const defaultSession = {
+            id: Date.now().toString(),
+            title: "新会话",
+            messages: legacyHistory ? JSON.parse(legacyHistory) : []
+        };
+        return [defaultSession];
+    };
 
-    // --- 样式定义 (Material Design 风格内联/局部注入) ---
+    const sessions = van.state(initSessions());
+    const activeSessionId = van.state(localStorage.getItem("ollama_active_session") || sessions.val[0].id);
+
+    // 辅助获取当前激活的会话消息列表
+    const getActiveMessages = () => {
+        const active = sessions.val.find(s => s.id === activeSessionId.val);
+        return active ? active.messages : [];
+    };
+
+    // 保存所有会话数据并检测容量
+    const saveSessionsData = (newSessions) => {
+        sessions.val = newSessions;
+        localStorage.setItem("ollama_sessions", JSON.stringify(newSessions));
+        checkStorageCapacity();
+    };
+
+    // --- 样式定义 ---
     const styles = `
     .md-card { background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: #333; margin-bottom: 20px; transition: all 0.3s; }
     .md-field { position: relative; margin-bottom: 20px; width: 100%; }
@@ -65,7 +106,7 @@ export const OllamaChat = () => {
     .md-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 8px; }
     .badge-speed { background: #E8DEF8; color: #4F378B; }
     .badge-accuracy { background: #D0E1FD; color: #1A4175; }
-    .chat-box { max-height: 400px; overflow-y: auto; border: 1px solid #E0E0E0; border-radius: 8px; padding: 16px; background: #F5F5F5; margin-bottom: 16px; }
+    .chat-box { max-height: 400px; min-height: 200px; overflow-y: auto; border: 1px solid #E0E0E0; border-radius: 8px; padding: 16px; background: #F5F5F5; margin-bottom: 16px; }
     .msg-user { text-align: right; margin-bottom: 12px; }
     .msg-user span { background: #D0BCFF; padding: 8px 14px; border-radius: 16px 16px 2px 16px; display: inline-block; max-width: 70%; word-break: break-all; }
     .msg-assistant { text-align: left; margin-bottom: 12px; }
@@ -73,17 +114,57 @@ export const OllamaChat = () => {
     .loader-status { color: #6750A4; font-weight: bold; display: flex; align-items: center; gap: 8px; margin: 10px 0; }
     .spinner { width: 16px; height: 16px; border: 2px solid #6750A4; border-top-color: transparent; border-radius: 50%; animation: spin 1s infinite linear; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* 新增 Session 管理区域样式 */
+    .session-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid #E0E0E0; }
+    .session-bar::-webkit-scrollbar { height: 4px; }
+    .session-bar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+    .session-chip { background: #E6E1E5; color: #49454F; border: none; padding: 6px 16px; border-radius: 16px; cursor: pointer; white-space: nowrap; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; gap: 8px; font-weight: 500;}
+    .session-chip.active { background: #6750A4; color: white; }
+    .session-chip .del-btn { background: transparent; border: none; color: inherit; font-size: 18px; cursor: pointer; padding: 0; line-height: 1; opacity: 0.7; }
+    .session-chip .del-btn:hover { opacity: 1; transform: scale(1.1); }
   `;
 
-    // 动态注入样式
     if (!document.getElementById("md-ollama-styles")) {
         const styleEl = van.tags.style({ id: "md-ollama-styles" }, styles);
         document.head.appendChild(styleEl);
     }
 
-    // --- 核心业务逻辑 ---
+    // --- 业务逻辑 ---
 
-    // 1. 权限校验
+    // 1. Session 操作
+    const createNewSession = () => {
+        const newId = Date.now().toString();
+        const newSession = { id: newId, title: "新会话", messages: [] };
+        saveSessionsData([newSession, ...sessions.val]);
+        activeSessionId.val = newId;
+        localStorage.setItem("ollama_active_session", newId);
+    };
+
+    const switchSession = (id) => {
+        if (isResponding.val) return; // 正在回复时禁止切换
+        activeSessionId.val = id;
+        localStorage.setItem("ollama_active_session", id);
+    };
+
+    const deleteSession = (id) => {
+        if (isResponding.val) return;
+        const newSessions = sessions.val.filter(s => s.id !== id);
+
+        // 如果删光了，自动创建一个新的
+        if (newSessions.length === 0) {
+            const newId = Date.now().toString();
+            newSessions.push({ id: newId, title: "新会话", messages: [] });
+            activeSessionId.val = newId;
+        } else if (activeSessionId.val === id) {
+            // 如果删除的是当前处于激活状态的会话，默认切换到第一个
+            activeSessionId.val = newSessions[0].id;
+        }
+
+        localStorage.setItem("ollama_active_session", activeSessionId.val);
+        saveSessionsData(newSessions);
+    };
+
     const handleVerify = async () => {
         if (!deviceName.val.trim() || !accessKey.val.trim()) {
             authError.val = "请填写完整的计算机名/手机名以及通行密钥！";
@@ -99,16 +180,13 @@ export const OllamaChat = () => {
         }
     };
 
-    // 2. 模型切换（卸载旧模型 -> 加载新模型）
     const handleModelChange = async (e) => {
-        const nextModel = e.target.value;
+        if (selectedModel.val === e.target.value) return;
         previousModel.val = selectedModel.val;
-        selectedModel.val = nextModel;
-
+        selectedModel.val = e.target.value;
         isModelLoading.val = true;
 
         try {
-            // 显式向 Ollama 发送请求卸载上一个模型 (keep_alive: 0)
             if (previousModel.val) {
                 await fetch(`${OLLAMA_HOST}/api/chat`, {
                     method: "POST",
@@ -116,14 +194,11 @@ export const OllamaChat = () => {
                     body: JSON.stringify({ model: previousModel.val, keep_alive: 0 })
                 }).catch(err => console.log("卸载旧模型提示:", err));
             }
-
-            // 预加载新模型 (通过发送一个空提示词让其置入内存)
             await fetch(`${OLLAMA_HOST}/api/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ model: nextModel, prompt: "", keep_alive: -1 }) // -1 代表让模型驻留内存
+                body: JSON.stringify({ model: selectedModel.val, prompt: "", keep_alive: -1 })
             });
-
         } catch (error) {
             console.error("加载模型切换异常: ", error);
         } finally {
@@ -131,21 +206,32 @@ export const OllamaChat = () => {
         }
     };
 
-    // 3. 发送 AI 对话请求
     const handleSendMessage = async () => {
         if (!inputMessage.val.trim() || isResponding.val || isModelLoading.val) return;
 
         const userText = inputMessage.val.trim();
-        // 1. 将用户的输入存入历史并立即渲染
-        const updatedHistory = [...chatHistory.val, { role: "user", content: userText }];
-        chatHistory.val = updatedHistory;
-        localStorage.setItem("ollama_chat_history", JSON.stringify(updatedHistory));
+        let currentSessions = [...sessions.val];
+        let activeIdx = currentSessions.findIndex(s => s.id === activeSessionId.val);
+
+        // 【核心修改点】：如果这是新会话的第一条消息，用它来命名会话，最大截取前十个字
+        if (currentSessions[activeIdx].messages.length === 0) {
+            currentSessions[activeIdx].title = userText.substring(0, 10);
+        }
+
+        // 将用户输入推入当前激活的 session 消息列表中
+        currentSessions[activeIdx].messages.push({ role: "user", content: userText });
+        saveSessionsData(currentSessions); // 持久化更新 localStorage 并检查容量
 
         inputMessage.val = "";
         isResponding.val = true;
 
-        // 2. 添加一个空的 AI 响应占位，用于后续不断追加文字
-        chatHistory.val = [...chatHistory.val, { role: "assistant", content: "" }];
+        // 添加一个空的 AI 响应占位
+        currentSessions = [...sessions.val];
+        currentSessions[activeIdx].messages.push({ role: "assistant", content: "" });
+        sessions.val = currentSessions;
+
+        // 提取发送给 API 的历史记录（排除刚才加的空占位）
+        const historyForApi = currentSessions[activeIdx].messages.slice(0, -1);
 
         try {
             const response = await fetch(`${OLLAMA_HOST}/api/chat`, {
@@ -153,49 +239,35 @@ export const OllamaChat = () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     model: selectedModel.val,
-                    // 注意：发送给后端的历史记录不应该包含刚刚放进去的空占位符，所以传 updatedHistory
-                    messages: updatedHistory,
-                    stream: true // 开启流式传输
+                    messages: historyForApi,
+                    stream: true
                 })
             });
 
             if (!response.ok) throw new Error(`Ollama 服务响应异常: ${response.status}`);
 
-            // 3. 获取数据读取器和解码器
             const reader = response.body.getReader();
             const decoder = new TextDecoder("utf-8");
+            let assistantContent = "";
 
-            let assistantContent = ""; // 用于累加 AI 的回复内容
-
-            // 4. 循环读取流数据
             while (true) {
                 const { done, value } = await reader.read();
+                if (done) break;
 
-                if (done) {
-                    break; // 数据流结束
-                }
-
-                // 解码当前数据块 (加上 { stream: true } 防止切断多字节字符)
                 const chunk = decoder.decode(value, { stream: true });
-
-                // Ollama 返回的是以换行符分割的 JSON 字符串，按行拆分
                 const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
                 for (const line of lines) {
                     try {
                         const data = JSON.parse(line);
                         if (data.message && data.message.content) {
-                            // 累加字符
                             assistantContent += data.message.content;
 
-                            // 5. 实时更新 VanJS 状态
-                            // 拷贝当前数组，修改最后一条记录的 content 并重新赋值，触发视图更新
-                            const currentHistory = [...chatHistory.val];
-                            currentHistory[currentHistory.length - 1] = {
-                                role: "assistant",
-                                content: assistantContent
-                            };
-                            chatHistory.val = currentHistory;
+                            // 实时更新当前激活的 Session
+                            const updatedSessions = [...sessions.val];
+                            const idx = updatedSessions.findIndex(s => s.id === activeSessionId.val);
+                            updatedSessions[idx].messages[updatedSessions[idx].messages.length - 1].content = assistantContent;
+                            sessions.val = updatedSessions;
                         }
                     } catch (parseError) {
                         console.error("JSON 解析错误，跳过此行:", line, parseError);
@@ -203,27 +275,20 @@ export const OllamaChat = () => {
                 }
             }
 
-            // 6. 对话彻底结束后，将完整的记录存入 localStorage
-            localStorage.setItem("ollama_chat_history", JSON.stringify(chatHistory.val));
+            // 流读取完毕后，统一存入 localStorage 并检查容量
+            saveSessionsData(sessions.val);
 
         } catch (err) {
-            // 捕获到错误时，直接覆盖最后一条的占位内容为报错信息
-            const currentHistory = [...chatHistory.val];
-            currentHistory[currentHistory.length - 1] = {
-                role: "assistant",
-                content: `❌ 出错了: ${err.message}`
-            };
-            chatHistory.val = currentHistory;
+            const updatedSessions = [...sessions.val];
+            const idx = updatedSessions.findIndex(s => s.id === activeSessionId.val);
+            updatedSessions[idx].messages[updatedSessions[idx].messages.length - 1].content = `❌ 出错了: ${err.message}`;
+            saveSessionsData(updatedSessions);
         } finally {
             isResponding.val = false;
         }
     };
-    const clearHistory = () => {
-        chatHistory.val = [];
-        localStorage.removeItem("ollama_chat_history");
-    };
 
-    // --- 视图渲染分流 ---
+    // 视图渲染
     return van.tags.main({ class: "blog" }, [
         van.tags.h1("Ollama Chat"),
 
@@ -231,23 +296,19 @@ export const OllamaChat = () => {
         () => !isAuthorized.val ? van.tags.div({ class: "md-card" },
             van.tags.h3("🔐 访问受限 - 请执行安全校验"),
             van.tags.p("请将下方自动生成的设备码提供给管理员，以换取通行密钥。"),
-
             van.tags.div({ class: "md-field" },
-                // 将输入框改为只读 (readonly)，展示自动生成的设备码
                 van.tags.input({
                     class: "md-input",
                     style: "background: #f0f0f0; color: #666; cursor: not-allowed;",
                     readonly: true,
                     value: deviceName
                 }),
-                // 添加一个快速复制按钮提升体验
                 van.tags.button({
                     class: "md-btn",
                     style: "position: absolute; right: 4px; top: 4px; padding: 6px 12px; font-size: 12px;",
                     onclick: () => navigator.clipboard.writeText(deviceName.val).then(() => alert("设备码已复制！"))
                 }, "复制设备码")
             ),
-
             van.tags.div({ class: "md-field" },
                 van.tags.input({
                     class: "md-input", type: "password", placeholder: "请输入管理员下发的通行密钥",
@@ -262,7 +323,6 @@ export const OllamaChat = () => {
         () => isAuthorized.val ? van.tags.div({ class: "md-card" },
             van.tags.h3("⚙️ 模型配置与交互"),
 
-            // 模型选择器
             van.tags.div({ class: "md-field" },
                 van.tags.label({ style: "display:block; margin-bottom:8px; font-weight:500;" }, "选择运行的模型："),
                 van.tags.select({
@@ -274,7 +334,6 @@ export const OllamaChat = () => {
                 )
             ),
 
-            // 模型特点标注
             van.tags.div({ style: "margin-bottom: 20px; font-size: 14px; background:#F7F2FA; padding:12px; border-radius:8px;" },
                 () => selectedModel.val === "gemma4-12b-heretic"
                     ? van.tags.div(
@@ -287,7 +346,6 @@ export const OllamaChat = () => {
                     )
             ),
 
-            // 加载状态捕获
             () => isModelLoading.val ? van.tags.div({ class: "loader-status" },
                 van.tags.div({ class: "spinner" }),
                 van.tags.span("正在通知 Ollama 卸载旧模型并动态加载新模型中，请稍候...")
@@ -295,21 +353,51 @@ export const OllamaChat = () => {
 
             van.tags.hr({ style: "border:0; border-top:1px solid #eee; margin:20px 0;" }),
 
-            // 对话区域
-            van.tags.div({ class: "chat-box" },
-                () => chatHistory.val.length === 0
-                    ? van.tags.p({ style: "text-align:center; color:#999;" }, "暂无对话记录，发送一条消息开始吧")
-                    : van.tags.div(chatHistory.val.map(msg =>
-                        van.tags.div({ class: msg.role === "user" ? "msg-user" : "msg-assistant" },
-                            van.tags.span(msg.content)
-                        )
+            // --- 新增：Session 管理工具栏 ---
+            van.tags.div({ class: "session-bar" },
+                van.tags.button({
+                    class: "md-btn",
+                    style: "padding: 6px 14px; font-size: 14px; margin-right: 8px; flex-shrink: 0; background: #E8DEF8; color: #4F378B;",
+                    onclick: createNewSession
+                }, "＋ 新建 Session"),
+
+                // 渲染所有 Session Tag
+                () => van.tags.div({ style: "display: flex; gap: 8px; align-items: center;" },
+                    sessions.val.map(session => van.tags.div(
+                        {
+                            class: () => "session-chip" + (activeSessionId.val === session.id ? " active" : ""),
+                            onclick: () => switchSession(session.id)
+                        },
+                        van.tags.span(session.title),
+                        van.tags.button({
+                            class: "del-btn",
+                            onclick: (e) => {
+                                e.stopPropagation();
+                                if (confirm(`确定删除会话 "${session.title}" 吗？`)) deleteSession(session.id);
+                            },
+                            title: "删除会话"
+                        }, "×")
                     ))
+                )
             ),
 
-            // 输入框与发送按钮
+            // 对话区域 (动态渲染当前激活的 Session 消息)
+            van.tags.div({ class: "chat-box" },
+                () => {
+                    const currentMessages = getActiveMessages();
+                    return currentMessages.length === 0
+                        ? van.tags.p({ style: "text-align:center; color:#999; margin-top: 40px;" }, "暂无对话记录，发送一条消息开始吧")
+                        : van.tags.div(currentMessages.map(msg =>
+                            van.tags.div({ class: msg.role === "user" ? "msg-user" : "msg-assistant" },
+                                van.tags.span(msg.content)
+                            )
+                        ))
+                }
+            ),
+
             van.tags.div({ style: "display:flex; gap:12px;" },
                 van.tags.input({
-                    class: "md-input", placeholder: isModelLoading.val ? "模型加载中，暂停输入..." : "说点什么吧...",
+                    class: "md-input", placeholder: () => isModelLoading.val ? "模型加载中，暂停输入..." : "说点什么吧...",
                     value: inputMessage, disabled: () => isModelLoading.val || isResponding.val,
                     oninput: e => inputMessage.val = e.target.value,
                     onkeydown: e => { if (e.key === "Enter") handleSendMessage(); }
@@ -319,13 +407,7 @@ export const OllamaChat = () => {
                     disabled: () => !isAuthorized.val || isModelLoading.val || isResponding.val || !inputMessage.val.trim(),
                     onclick: handleSendMessage
                 }, "发送")
-            ),
-
-            van.tags.button({
-                class: "md-btn",
-                style: "background: #E6E1E5; color: #49454F; margin-top: 16px; box-shadow:none;",
-                onclick: clearHistory
-            }, "清空本地对话缓存")
+            )
         ) : ""
     ]);
 };
